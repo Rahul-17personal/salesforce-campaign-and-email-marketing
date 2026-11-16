@@ -1,10 +1,12 @@
 # Standalone mode setup
 
-This guide runs CampaignHub without Salesforce. Local sign-in is provided by CampaignHub's own user table. Salesforce OAuth is not mounted by the API in this phase.
+This guide runs CampaignHub without Salesforce. Local sign-in is provided by CampaignHub's own user table. Salesforce integration is not active in this phase.
 
 ## 1. Environment file
 
-Create `.env` from `.env.example`. Generate a private session secret:
+Create `.env` from `.env.example` only when one does not already exist. If an older `.env` is present, preserve it and add the standalone settings (and remove any unused Salesforce settings).
+
+Generate a private session secret:
 
 ```powershell
 node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
@@ -25,7 +27,7 @@ docker compose up -d postgres
 docker compose ps
 ```
 
-Wait until the PostgreSQL container reports healthy.
+Wait until the PostgreSQL container reports healthy. The database port is bound to the local machine only.
 
 ## 3. Install, migrate and seed
 
@@ -62,4 +64,4 @@ npm.cmd run db:seed
 
 ## 6. Phase boundary
 
-The dashboard currently displays database-backed overview metrics, demo contacts, campaign records and email templates. Editing, imports, audience building, actual sending and analytics drill-downs belong to later phases. The SES configuration values are placeholders only; no SES SDK or sending endpoint is active.
+The dashboard currently displays database-backed overview metrics, demo contacts, campaign records and email templates. Editing, imports, audience building, actual sending and analytics drill-downs belong to later phases. SES configuration values are placeholders only; no SES SDK or sending endpoint is active.

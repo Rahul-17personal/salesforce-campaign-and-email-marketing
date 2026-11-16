@@ -47,3 +47,15 @@ jobs:
         run: npm run db:migrate
       - name: Seed demo workspace
         run: npm run db:seed
+      - name: Start API for smoke test
+        run: |
+          npx tsx apps/api/src/server.ts > /tmp/campaignhub-api.log 2>&1 &
+          echo $! > /tmp/campaignhub-api.pid
+      - name: Test local sign-in and dashboard
+        run: npm --workspace @marketing/api run test:smoke
+      - name: Stop API
+        if: always()
+        run: |
+          if [ -f /tmp/campaignhub-api.pid ]; then
+            kill "$(cat /tmp/campaignhub-api.pid)" || true
+          fi

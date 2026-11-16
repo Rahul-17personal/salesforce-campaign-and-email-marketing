@@ -27,7 +27,7 @@ router.get("/summary", async (_req, res, next) => {
       pool.query(`
         SELECT id, record_type, first_name, last_name, email, company, city, country,
                lifecycle_status, marketing_consent, created_at
-        FROM contacts ORDER BY created_at DESC LIMIT 10
+        FROM contacts ORDER BY created_at DESC LIMIT 100
       `),
       pool.query(`
         SELECT id, name, category, subject_line, preview_text, created_at

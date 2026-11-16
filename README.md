@@ -28,11 +28,13 @@ Not yet included:
 
 Run from the repository root.
 
-1. Create your local environment file:
+1. Create a local environment file only if one does not already exist:
 
    ```powershell
-   Copy-Item .env.example .env
+   if (!(Test-Path .env)) { Copy-Item .env.example .env }
    ```
+
+   If `.env` already exists, keep it and add/update the standalone values shown in `.env.example`. The app no longer needs Salesforce variables.
 
 2. Generate a unique session signing secret:
 
