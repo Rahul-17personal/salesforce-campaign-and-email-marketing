@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "../loadEnv.js";
 import { readFile } from "node:fs/promises";
 import { pool } from "./pool.js";
 
