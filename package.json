@@ -1,0 +1,19 @@
+{
+  "name": "salesforce-campaign-email-marketing",
+  "private": true,
+  "version": "0.2.1",
+  "workspaces": ["apps/api", "apps/web"],
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,green \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "npm --workspace @marketing/api run dev",
+    "dev:web": "npm --workspace @marketing/web run dev",
+    "db:migrate": "npm --workspace @marketing/api run db:migrate",
+    "db:seed": "npm --workspace @marketing/api run db:seed",
+    "setup:windows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/Setup-CampaignHub.ps1",
+    "build": "npm run build --workspace @marketing/api && npm run build --workspace @marketing/web",
+    "typecheck": "npm run typecheck --workspace @marketing/api && npm run typecheck --workspace @marketing/web",
+    "lint": "npm run lint --workspace @marketing/api && npm run lint --workspace @marketing/web"
+  },
+  "devDependencies": {"concurrently": "^9.1.2", "typescript": "^5.7.3"},
+  "engines": {"node": ">=22"}
+}
