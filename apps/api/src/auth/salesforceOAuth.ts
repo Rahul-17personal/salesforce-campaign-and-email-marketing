@@ -14,7 +14,7 @@ const identitySchema = z.object({
   organization_id: z.string().min(1),
   username: z.string().min(1),
   display_name: z.string().optional(),
-  email: z.string().email().optional(),
+  email: z.string().optional(),
   asserted_user: z.boolean().optional()
 });
 
@@ -42,7 +42,7 @@ export function createAuthorizationUrl(state: string, challenge: string): string
 export function isSalesforceHttpsUrl(raw: string): boolean {
   try {
     const url = new URL(raw);
-    return url.protocol === "https:" &&
+    return url.protocol === "https:" && !url.username && !url.password && !url.port &&
       (url.hostname === "login.salesforce.com" ||
        url.hostname === "test.salesforce.com" ||
        url.hostname.endsWith(".salesforce.com") ||
@@ -73,11 +73,8 @@ export async function exchangeAuthorizationCode(
     body,
     signal: AbortSignal.timeout(15_000)
   });
-
   const payload: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error("SALESFORCE_TOKEN_EXCHANGE_FAILED");
-  }
+  if (!response.ok) throw new Error("SALESFORCE_TOKEN_EXCHANGE_FAILED");
 
   const token = tokenSchema.parse(payload);
   if (!isSalesforceHttpsUrl(token.instance_url) || !isSalesforceHttpsUrl(token.id)) {
@@ -86,31 +83,23 @@ export async function exchangeAuthorizationCode(
   return token;
 }
 
-export async function getSalesforceIdentity(
-  token: SalesforceTokenResponse
-): Promise<SalesforceIdentity> {
+export async function getSalesforceIdentity(token: SalesforceTokenResponse): Promise<SalesforceIdentity> {
   const identityUrl = new URL(token.id);
   const idParts = identityUrl.pathname.split("/").filter(Boolean);
-  if (idParts.length !== 3 || idParts[0] !== "id") {
-    throw new Error("SALESFORCE_IDENTITY_URL_INVALID");
-  }
+  if (idParts.length !== 3 || idParts[0] !== "id") throw new Error("SALESFORCE_IDENTITY_URL_INVALID");
 
   const response = await fetch(identityUrl, {
     headers: { authorization: `Bearer ${token.access_token}`, accept: "application/json" },
     signal: AbortSignal.timeout(15_000)
   });
   const payload: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error("SALESFORCE_IDENTITY_LOOKUP_FAILED");
-  }
+  if (!response.ok) throw new Error("SALESFORCE_IDENTITY_LOOKUP_FAILED");
 
   const identity = identitySchema.parse(payload);
   if (identity.user_id !== idParts[2] || identity.organization_id !== idParts[1]) {
     throw new Error("SALESFORCE_IDENTITY_MISMATCH");
   }
-  if (identity.asserted_user === false) {
-    throw new Error("SALESFORCE_IDENTITY_NOT_ASSERTED");
-  }
+  if (identity.asserted_user === false) throw new Error("SALESFORCE_IDENTITY_NOT_ASSERTED");
   return identity;
 }
 
@@ -122,7 +111,5 @@ export async function revokeSalesforceToken(token: string): Promise<void> {
     body,
     signal: AbortSignal.timeout(10_000)
   });
-  if (!response.ok && response.status !== 400) {
-    throw new Error("SALESFORCE_TOKEN_REVOCATION_FAILED");
-  }
+  if (!response.ok && response.status !== 400) throw new Error("SALESFORCE_TOKEN_REVOCATION_FAILED");
 }

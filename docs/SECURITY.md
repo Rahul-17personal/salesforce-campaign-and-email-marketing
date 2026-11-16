@@ -3,26 +3,31 @@
 This is a design baseline, not a claim of completed certification or penetration testing.
 
 ## Identity and sessions
-- Salesforce OAuth Authorization Code + PKCE; validate state, exact redirect URI and callback.
-- Bind the session to the Salesforce org and authenticated user.
-- Do not collect Salesforce passwords.
-- Store tokens encrypted server-side; restrict decryption to the API workload.
-- Rotate session IDs after login and privilege changes.
-- Cookies: Secure in production, HttpOnly, SameSite=Lax or stricter; enforce idle and absolute expiry.
-- Implement CSRF protection for state-changing cookie-authenticated requests.
-- Provide session revocation and disconnect controls.
+- Interactive user login uses Salesforce OAuth 2.0 Web Server Authorization Code flow with PKCE.
+- Validate one-time OAuth state and PKCE verifier; use exact redirect URI matching.
+- Bind every app session to the verified Salesforce org ID and user ID.
+- Never collect Salesforce passwords or expose OAuth tokens to browser JavaScript.
+- Encrypt access and refresh tokens with AES-256-GCM before server-side session storage.
+- Rotate the local session ID after successful authentication.
+- Cookies are HttpOnly, SameSite=Lax, and Secure in production.
+- Use CSRF validation for state-changing cookie-authenticated routes.
+- Revoke refresh token on logout when available, then always destroy the local session.
+
+## Session persistence
+- In-memory sessions are development-only.
+- Production requires Redis, TLS, network isolation, strong authentication and an eight-hour session TTL.
+- Production requires a dedicated 32-byte token-encryption key, stored outside Git in a secret manager/KMS-backed system.
+- Never reuse a local development key in production.
 
 ## Authorization
-- Deny by default; enforce permissions on every endpoint.
-- Re-check Salesforce org/user binding and Salesforce CRUD, FLS and sharing for CRM operations.
-- Never trust client-supplied Salesforce record IDs, user IDs, org IDs, recipient counts or approval status.
+- Authentication is not equivalent to authorization. Deny CRM operations by default until the CRM layer enforces Salesforce CRUD, field-level security and record sharing.
+- Never trust client-supplied Salesforce record IDs, user IDs, org IDs or approval status.
 - Separate campaign author, approver and sender permissions.
-- Require new approval when audience or content changes after approval.
 - Integration identities require least privilege and explicit attribution.
 
 ## Data protection
 - Minimize stored CRM data; prefer IDs and transient query results.
-- Encrypt database, backups, object storage and OAuth tokens at rest; TLS in transit.
+- Encrypt database, backups and object storage; use TLS in transit.
 - Store secrets in AWS Secrets Manager, never source control or frontend bundles.
 - Define retention, deletion and access review policies before production.
 - Do not log message bodies, recipient addresses, tokens, cookies or raw provider payloads.
@@ -39,8 +44,8 @@ This is a design baseline, not a claim of completed certification or penetration
 - Obtain legal/compliance review for recipient jurisdictions and applicable privacy/anti-spam laws.
 
 ## Operational security
-- Helmet, strict CORS, payload limits, rate limiting and schema validation.
-- Dependency, secret, SAST, DAST and penetration testing before release.
+- Use security headers, strict CORS, payload limits, rate limiting and schema validation.
+- Run dependency, secret, SAST, DAST and penetration testing before release.
 - Alert on unusual exports, auth failures, approval bypass attempts and bounce/complaint spikes.
 - Maintain tamper-evident audit events for login, access, export, audience changes, approvals, sends and admin changes.
 - Document incident response, key rotation, restore and breach notification procedures.
