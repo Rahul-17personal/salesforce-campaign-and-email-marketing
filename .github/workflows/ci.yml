@@ -59,3 +59,18 @@ jobs:
           if [ -f /tmp/campaignhub-api.pid ]; then
             kill "$(cat /tmp/campaignhub-api.pid)" || true
           fi
+
+  powershell-script-syntax:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse Windows setup script
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("scripts/Setup-CampaignHub.ps1", [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
