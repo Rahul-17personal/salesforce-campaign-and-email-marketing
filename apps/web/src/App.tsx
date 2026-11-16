@@ -201,7 +201,7 @@ export default function App() {
 
       <div className="page-content">
         {appError && <div className="inline-error"><ShieldCheck size={17}/>{appError}<button onClick={() => void loadWorkspace()}>Retry</button></div>}
-        {page === "Overview" && data && <OverviewPage data={data} user={auth.user}/>}
+        {page === "Overview" && data && <OverviewPage data={data} user={auth.user} onViewCampaigns={() => setPage("Campaigns")}/>}
         {page === "Contacts & Leads" && data && <ContactsPage contacts={data.contacts}/>}
         {page === "Campaigns" && data && <CampaignsPage campaigns={data.campaigns}/>}
         {page === "Email Studio" && data && <TemplatesPage templates={data.templates}/>}
@@ -257,12 +257,12 @@ function LoginScreen(props: {
   </main>;
 }
 
-function OverviewPage({ data, user }: { data: DashboardData; user: User }) {
+function OverviewPage({ data, user, onViewCampaigns }: { data: DashboardData; user: User; onViewCampaigns: () => void }) {
   const { stats } = data;
   return <>
     <section className="welcome-row">
       <div><div className="eyebrow">MONDAY, NOVEMBER 16, 2026 · WORKSPACE OVERVIEW</div><h1>Good afternoon, {user.fullName.split(" ")[0]} <span>✦</span></h1><p>Here is what's happening across your marketing workspace.</p></div>
-      <div className="welcome-actions"><span className="demo-badge"><span/> Demo data loaded</span><button className="primary-button" onClick={() => window.dispatchEvent(new CustomEvent("campaignhub:navigate", { detail: "Campaigns" }))}><Megaphone size={16}/> View campaigns</button></div>
+      <div className="welcome-actions"><span className="demo-badge"><span/> Demo data loaded</span><button className="primary-button" onClick={onViewCampaigns}><Megaphone size={16}/> View campaigns</button></div>
     </section>
 
     <section className="workspace-banner">
