@@ -1,51 +1,38 @@
 # Security and governance baseline
 
-This is a design baseline, not a claim of completed certification or penetration testing.
+This document describes the current local-mode controls and the additional work required before shared or production use. It is not a certification or penetration-test report.
 
-## Identity and sessions
-- Interactive user login uses Salesforce OAuth 2.0 Web Server Authorization Code flow with PKCE.
-- Validate one-time OAuth state and PKCE verifier; use exact redirect URI matching.
-- Bind every app session to the verified Salesforce org ID and user ID.
-- Never collect Salesforce passwords or expose OAuth tokens to browser JavaScript.
-- Encrypt access and refresh tokens with AES-256-GCM before server-side session storage.
-- Rotate the local session ID after successful authentication.
-- Cookies are HttpOnly, SameSite=Lax, and Secure in production.
-- Use CSRF validation for state-changing cookie-authenticated routes.
-- Revoke refresh token on logout when available, then always destroy the local session.
+## Implemented in standalone mode
 
-## Session persistence
-- In-memory sessions are development-only.
-- Production requires Redis, TLS, network isolation, strong authentication and an eight-hour session TTL.
-- Production requires a dedicated 32-byte token-encryption key, stored outside Git in a secret manager/KMS-backed system.
-- Never reuse a local development key in production.
+- Local accounts use bcrypt password hashes; plaintext passwords are not stored.
+- Login is rate-limited and returns generic invalid-credentials errors.
+- The API validates the browser Origin and a session-bound CSRF token for login/logout.
+- Session IDs are regenerated after login.
+- Browser session cookies are HttpOnly, SameSite=Lax and Secure in production.
+- Session data is stored server-side in PostgreSQL; the browser receives only the session identifier.
+- Dashboard data routes require an authenticated session.
+- Authentication events are recorded in the audit log.
+- Sample contacts use reserved example.com addresses. No email delivery endpoint is present.
+- Demo seeding is restricted to NODE_ENV=development.
 
-## Authorization
-- Authentication is not equivalent to authorization. Deny CRM operations by default until the CRM layer enforces Salesforce CRUD, field-level security and record sharing.
-- Never trust client-supplied Salesforce record IDs, user IDs, org IDs or approval status.
-- Separate campaign author, approver and sender permissions.
-- Integration identities require least privilege and explicit attribution.
+## Local development limits
 
-## Data protection
-- Minimize stored CRM data; prefer IDs and transient query results.
-- Encrypt database, backups and object storage; use TLS in transit.
-- Store secrets in AWS Secrets Manager, never source control or frontend bundles.
-- Define retention, deletion and access review policies before production.
-- Do not log message bodies, recipient addresses, tokens, cookies or raw provider payloads.
-- Use synthetic data in development.
+- Docker Compose credentials and demo account passwords are public development fixtures. Change them before sharing an environment.
+- Local HTTP is permitted only for loopback development. Use HTTPS outside localhost.
+- Do not expose the development PostgreSQL port or API directly to the internet.
+- Database session storage is local-development oriented until production networking, TLS, database roles, retention and backups are configured.
 
-## Email governance
-- Maintain a central suppression list and process unsubscribe, complaint and hard-bounce events.
-- Evaluate documented consent/legal basis and Salesforce opt-out fields before audience creation and again immediately before sending.
-- Include a working unsubscribe mechanism and honor requests promptly.
-- Verify sender domain and configure DKIM, SPF and DMARC alignment.
-- Apply send-rate and daily quotas, recipient caps, test-send flow and approval thresholds.
-- Block sending while SES is in sandbox or sender identity is unverified.
-- Classify transactional and marketing messages separately.
-- Obtain legal/compliance review for recipient jurisdictions and applicable privacy/anti-spam laws.
+## Required before production
 
-## Operational security
-- Use security headers, strict CORS, payload limits, rate limiting and schema validation.
-- Run dependency, secret, SAST, DAST and penetration testing before release.
-- Alert on unusual exports, auth failures, approval bypass attempts and bounce/complaint spikes.
-- Maintain tamper-evident audit events for login, access, export, audience changes, approvals, sends and admin changes.
-- Document incident response, key rotation, restore and breach notification procedures.
+- Replace demo accounts with an administrative provisioning or invitation workflow; disable public/demo seeding.
+- Enforce role-based permissions on every management operation, not merely page visibility.
+- Add stronger password policy, password reset, account lockout/recovery, MFA or company identity provider integration.
+- Store production secrets in a secrets manager and rotate them.
+- Use a least-privilege database role, private network, TLS with certificate validation, encrypted backups and a tested recovery plan.
+- Add security audit retention, alerting, export monitoring and access reviews.
+- Complete SAST, dependency/secret scanning, DAST, penetration testing and incident response procedures.
+- Add consent and suppression checks, unsubscribe enforcement, verified sender authentication, campaign approval and rate limits before marketing email can be sent.
+
+## Future email controls
+
+AWS SES integration must be added behind a background worker. Before a job is sent, it must re-check consent, opt-out, suppression, verified sender, recipient limits, approval and idempotency. Complaints, hard bounces and unsubscribe events must update the suppression data before subsequent sends.

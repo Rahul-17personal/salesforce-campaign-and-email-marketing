@@ -1,42 +1,30 @@
 # Architecture
 
-## System boundaries
+## Current standalone architecture
 
-### React web client
-- Presents the marketing workspace and uses same-origin API requests.
-- Never receives Salesforce client secrets, long-lived tokens, or AWS credentials.
-- Does not send email directly.
+- **React + TypeScript + Vite:** Browser UI, local sign-in form and demo workspace views.
+- **Node.js + Express + TypeScript:** API, password authentication, session lifecycle and dashboard read APIs.
+- **PostgreSQL:** Local users, contacts, campaigns, email templates, audit events and server-side sessions.
+- **connect-pg-simple:** Express session store backed by PostgreSQL.
+- **Docker Compose:** Local PostgreSQL service for development.
 
-### Node API
-- Owns OAuth callback processing, sessions, authorization, validation, audit events, and orchestration.
-- Performs Salesforce REST requests using the authenticated user's authorized connection.
-- Uses an integration identity only for approved background tasks, with least privilege and explicit audit attribution.
+## Request flow
 
-### Salesforce
-- Remains the source of truth for Contacts, Leads, Accounts, Campaigns and Campaign Members.
-- Reads and writes must honor org sharing, CRUD, field-level security and business validation.
-- Audience queries select only required fields and use pagination.
+1. Browser calls `GET /api/auth/status` to create or retrieve an anonymous session and CSRF token.
+2. User submits email/password to `POST /api/auth/login` with Origin and CSRF headers.
+3. API validates credentials against a bcrypt hash, rotates the session ID and stores the local user identity in the PostgreSQL-backed session.
+4. Authenticated browser requests `GET /api/dashboard/summary`.
+5. API reads metrics, campaigns, contacts and templates from PostgreSQL.
+6. Logout validates Origin/CSRF, records an audit event, destroys the server-side session and clears the cookie.
 
-### AWS SES
-- Delivers email only after approval and pre-send policy checks.
-- Use a verified domain, configuration sets, message tags and event destinations.
-- Event processing is idempotent and correlates provider events to campaign/message IDs.
-- A successful API submission is not proof of inbox delivery.
+## Database ownership
 
-## Planned event flow
-1. User authenticates using Salesforce OAuth Authorization Code + PKCE.
-2. API validates OAuth state, PKCE, redirect URI and identity; creates a server-side session.
-3. API queries a narrowly scoped audience from Salesforce.
-4. User reviews recipient snapshot, consent/suppression status and campaign membership.
-5. An authorized approver approves the send request.
-6. Worker revalidates campaign state, permissions, suppression, consent, quotas and idempotency.
-7. Worker sends through SES; provider events are correlated using campaign/message tags.
-8. Aggregates and campaign status are synchronized back to Salesforce where permitted.
+- PostgreSQL is the system of record in standalone phase.
+- Demo records are synthetic. The seeder is development-only and idempotent by email/name.
+- Contact consent is represented as a local data field; later audience/send phases must enforce it at query time and immediately before delivery.
 
-## Reliability controls
-- Durable queue with bounded concurrency, exponential backoff and dead-letter handling.
-- Idempotency keys for campaign and recipient jobs.
-- Recheck suppression immediately before each send.
-- Store audience snapshot metadata and query criteria; avoid unnecessary copies of CRM PII.
-- Validate provider events and deduplicate them.
-- Define pause/cancel semantics; already accepted messages cannot be recalled.
+## Future integrations (not active)
+
+- **Salesforce:** deferred. A future connector can sync Contacts, Leads, Accounts, Campaigns and Campaign Members without becoming a dependency of the standalone workspace.
+- **Amazon SES:** deferred. A future queue/worker will handle approved email delivery and provider events.
+- **Redis/BullMQ:** may be introduced for distributed background work when required. Current web sessions use PostgreSQL.

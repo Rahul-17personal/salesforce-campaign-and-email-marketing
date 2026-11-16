@@ -1,55 +1,109 @@
-# Salesforce Campaign & Email Marketing Hub
+# CampaignHub – Email Marketing & Campaign Workspace
 
-Secure Salesforce-connected campaign management with Amazon SES delivery.
+A standalone email-marketing and campaign-management application. **Salesforce is not required or connected in this phase.** The application uses local user accounts, PostgreSQL and synthetic demo data. Amazon SES will be added in a later phase; this phase does not send email.
 
-## Current status – Phase 2
+## Current phase: Standalone application and demo data
 
-The repository now includes a React/TypeScript dashboard, Express/TypeScript API, and Salesforce OAuth 2.0 Web Server Authorization Code flow with PKCE. The OAuth routes are implemented, but an administrator must still create/configure the Salesforce External Client App and add its credentials to the local `.env` file before login can be tested.
+Included:
+- Local email/password authentication with Admin, Marketer and Viewer roles
+- PostgreSQL database and persistent server-side sessions
+- Demo seed accounts, synthetic contacts/leads, campaigns and email templates
+- Dashboard KPIs and read-only demo pages for contacts, campaigns and templates
+- Login rate limiting, CSRF checks, secure HttpOnly session cookies and audit events
+- Docker Compose for a local PostgreSQL instance
 
-CRM reads/writes, campaign operations and SES sending are not yet enabled. No email-send endpoint exists.
+Not yet included:
+- Contact/campaign editing, audience builder or CSV import
+- AWS SES email delivery, scheduling, unsubscribe processing or event webhooks
+- Salesforce integration
+- Production deployment
 
-## Stack
+## Requirements
 
-- React + TypeScript + Vite
-- Node.js + Express + TypeScript
-- Salesforce REST API using per-user OAuth Authorization Code + PKCE
-- Redis-backed production sessions (in-memory only for local development)
-- AES-256-GCM token encryption
-- Amazon SES email delivery (planned)
-- PostgreSQL + Redis/BullMQ (planned)
+- Node.js 22+
+- npm 10+
+- Docker Desktop with Docker Compose (recommended for local PostgreSQL)
 
-## Local start
+## Windows setup (PowerShell)
 
-Requires Node.js 22+ and npm 10+.
+Run from the repository root.
 
-```powershell
-Copy-Item .env.example .env
-npm.cmd install
-npm.cmd run dev
-```
+1. Create your local environment file:
 
-Open http://localhost:5173. Configure the Salesforce External Client App by following `docs/SALESFORCE_OAUTH_SETUP.md`.
+   ```powershell
+   Copy-Item .env.example .env
+   ```
 
-## Documentation
+2. Generate a unique session signing secret:
 
-- `docs/ARCHITECTURE.md`
-- `docs/SECURITY.md`
-- `docs/DEVELOPMENT.md`
-- `docs/SALESFORCE_OAUTH_SETUP.md`
+   ```powershell
+   node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+   ```
 
-## Security boundaries
+   Replace the sample `SESSION_SECRET` in `.env` with the generated value. Do not share or commit it.
 
-- Never commit `.env`, Salesforce credentials, OAuth tokens, AWS credentials or customer data.
-- Each human user authorizes their own Salesforce identity; no shared admin user is used for interactive login.
-- Salesforce remains the source of truth. CRM operations must enforce org/user binding, sharing, CRUD and field-level security.
-- Require consent/suppression checks, unsubscribe handling, verified sender identity and approval before marketing sends.
-- Foundation checks do not constitute a security audit or production certification.
+3. Start PostgreSQL:
 
-## Roadmap
+   ```powershell
+   docker compose up -d postgres
+   docker compose ps
+   ```
 
-1. Phase 1 foundation: workspace, dashboard shell, API health route, CI and docs.
-2. Phase 2 identity: OAuth + PKCE endpoints, encrypted tokens, sessions and logout; awaits org configuration and end-to-end test.
-3. Phase 3 CRM: scoped Contact/Lead/Account queries, pagination and permission checks.
-4. Phase 4 campaigns: Campaign/CampaignMember management, approvals and idempotency.
-5. Phase 5 email: templates, audience snapshots, consent/suppression, SES worker, event webhooks and scheduling.
-6. Phase 6 governance: audit trails, analytics, retention, security testing and deployment.
+4. Install dependencies:
+
+   ```powershell
+   npm.cmd install
+   ```
+
+5. Create the database schema and seed synthetic records:
+
+   ```powershell
+   npm.cmd run db:migrate
+   npm.cmd run db:seed
+   ```
+
+6. Start the web and API applications:
+
+   ```powershell
+   npm.cmd run dev
+   ```
+
+7. Open **http://localhost:5173**. Use `localhost` consistently; do not use `127.0.0.1` for local sign-in because the API validates the exact browser origin.
+
+## Demo sign-in accounts
+
+These credentials are for local development only and are configured in `.env.example`. The seed script hashes them with bcrypt before storing them.
+
+| Role | Email | Demo password |
+|---|---|---|
+| Admin | admin@campaignhub.local | CampaignHub!2026 |
+| Marketer | marketing@campaignhub.local | Marketing!2026 |
+| Viewer | viewer@campaignhub.local | Viewer!2026 |
+
+Change the demo passwords in your local `.env` before seeding if you prefer. Never use these demo credentials in a shared or production deployment.
+
+## Useful URLs
+
+- Web app: http://localhost:5173
+- API health: http://localhost:4000/health
+- API auth status: http://localhost:4000/auth/status (same browser session is required for the local auth state)
+
+## Commands
+
+- `npm.cmd run dev` – start the web and API workspaces
+- `npm.cmd run db:migrate` – apply the SQL schema
+- `npm.cmd run db:seed` – seed demo users, contacts, campaigns and templates
+- `npm.cmd run typecheck` – TypeScript checks
+- `npm.cmd run build` – production builds
+
+## Architecture and security
+
+- PostgreSQL stores user accounts, contacts, campaigns, email templates and audit events.
+- `connect-pg-simple` stores server-side sessions in PostgreSQL; the browser receives only an HttpOnly session cookie.
+- Passwords are hashed with bcrypt; raw passwords are never stored.
+- Login is rate-limited. Login and logout requests validate Origin and a session-bound CSRF token.
+- Dashboard data endpoints require an authenticated local user.
+- Seeded contacts use reserved `example.com` addresses. The app does not send emails in this phase.
+- Use a dedicated database, secrets manager, TLS, backups, monitoring and a security review before any shared production deployment.
+
+See `docs/STANDALONE_SETUP.md`, `docs/ARCHITECTURE.md` and `docs/SECURITY.md`.

@@ -2,38 +2,35 @@
 
 ## Local setup
 
-1. Install Node.js 22 LTS and npm 10+.
-2. Clone the repository and switch to `feature/application-foundation`.
-3. Copy `.env.example` to `.env`.
-4. Generate a unique session secret and token encryption key; see `docs/SALESFORCE_OAUTH_SETUP.md`.
-5. Configure a Salesforce External Client App using the exact callback URL in that guide.
-6. Run `npm.cmd install` on Windows PowerShell.
-7. Run `npm.cmd run dev`.
-8. Open **http://localhost:5173**. Use localhost consistently; do not mix with 127.0.0.1 for OAuth.
+Follow `docs/STANDALONE_SETUP.md` on Windows PowerShell. Use Node.js 22+, Docker Compose and npm.
 
 ## Commands
 
 - `npm.cmd run dev`: run API and web workspaces.
+- `npm.cmd run db:migrate`: apply the SQL schema in `apps/api/sql`.
+- `npm.cmd run db:seed`: create development-only demo users and sample data.
 - `npm.cmd run typecheck`: TypeScript checks.
-- `npm.cmd run lint`: currently runs TypeScript checks as a baseline.
 - `npm.cmd run build`: production builds.
 
-## Phase 2 API
+## API endpoints
 
-- `GET /health`: API health.
-- `GET /auth/status`: OAuth configuration and current app-session status.
-- `GET /auth/salesforce`: starts Salesforce authorization-code + PKCE.
-- `GET /auth/salesforce/callback`: validates the callback and creates a signed-in session.
-- `POST /auth/logout`: CSRF-protected local logout and best-effort Salesforce token revocation.
+- `GET /health`: API and database health.
+- `GET /auth/status`: current local session and CSRF token.
+- `POST /auth/login`: local email/password sign-in.
+- `POST /auth/logout`: CSRF-protected local sign-out.
+- `GET /dashboard/summary`: authenticated summary metrics, recent campaigns, contacts and email templates.
 
-The Vite proxy strips `/api` before forwarding, so browser paths are prefixed with `/api`.
+The Vite proxy strips `/api` before forwarding. The browser therefore calls `/api/auth/status`, `/api/auth/login`, and `/api/dashboard/summary`.
 
-## Session stores
+## Data model
 
-- Development: in-memory session store (sessions disappear on backend restart).
-- Production: Redis is mandatory. Set `REDIS_URL`, use HTTPS, a strong `SESSION_SECRET`, and a dedicated `TOKEN_ENCRYPTION_KEY_HEX`.
-- Never use the development memory store for production.
+- `app_users`: local user identity, role, status and bcrypt password hash.
+- `contacts`: synthetic Contact/Lead records and a marketing-consent flag.
+- `campaigns`: campaign state, subject and demonstration delivery metrics.
+- `email_templates`: template metadata, preview and safe HTML source (not rendered as executable page markup).
+- `audit_logs`: authentication events.
+- `app_sessions`: server-side sessions created by connect-pg-simple.
 
-## Not implemented yet
+## Phase boundaries
 
-Salesforce Contacts/Leads/Accounts queries, Campaign/CampaignMember operations, database-backed audit logging, SES sending, scheduling, suppression-list persistence and webhook processing. Do not expose the service publicly until these controls are implemented and tested.
+This phase is a standalone login and demo-data workspace. It does not yet implement contact/campaign write operations, CSV imports, campaign member management, email sending, scheduling or Salesforce integration.
