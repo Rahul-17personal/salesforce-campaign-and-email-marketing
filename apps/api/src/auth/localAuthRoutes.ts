@@ -87,7 +87,7 @@ router.post("/login", loginLimiter, async (req, res, next) => {
     req.session.csrfToken = randomBytes(32).toString("base64url");
     await pool.query("UPDATE app_users SET last_login_at = NOW() WHERE id = $1", [user.id]);
     await pool.query(
-      "INSERT INTO audit_logs (user_id, action, entity_type, entity_id) VALUES ($1, 'auth.login', 'user', $1)",
+      "INSERT INTO audit_logs (user_id, action, entity_type, entity_id) VALUES ($1::uuid, 'auth.login', 'user', $1::text)",
       [user.id]
     );
     await saveSession(req);
@@ -106,7 +106,7 @@ router.post("/logout", async (req, res, next) => {
     const user = req.session.user;
     if (user) {
       await pool.query(
-        "INSERT INTO audit_logs (user_id, action, entity_type, entity_id) VALUES ($1, 'auth.logout', 'user', $1)",
+        "INSERT INTO audit_logs (user_id, action, entity_type, entity_id) VALUES ($1::uuid, 'auth.logout', 'user', $1::text)",
         [user.id]
       );
     }
