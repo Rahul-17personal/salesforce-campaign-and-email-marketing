@@ -11,11 +11,39 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    env:
+      NODE_ENV: development
+      SESSION_SECRET: campaignhub-ci-session-secret-not-for-production-123456
+      DATABASE_URL: postgresql://campaignhub:campaignhub_ci_password@localhost:5432/campaignhub
+      DEMO_ADMIN_PASSWORD: CampaignHub!2026
+      DEMO_MARKETER_PASSWORD: Marketing!2026
+      DEMO_VIEWER_PASSWORD: Viewer!2026
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: campaignhub
+          POSTGRES_USER: campaignhub
+          POSTGRES_PASSWORD: campaignhub_ci_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U campaignhub -d campaignhub"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
-      - run: npm run typecheck
-      - run: npm run build
+      - name: Install dependencies
+        run: npm install
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Apply database schema
+        run: npm run db:migrate
+      - name: Seed demo workspace
+        run: npm run db:seed
