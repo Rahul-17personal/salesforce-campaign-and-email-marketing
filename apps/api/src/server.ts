@@ -1,23 +1,26 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
 import rateLimit from "express-rate-limit";
 import session from "express-session";
-import { createClient } from "redis";
-import { RedisStore } from "connect-redis";
-import { config, SESSION_TTL_MS, SESSION_TTL_SECONDS } from "./config.js";
-import authRoutes from "./auth/authRoutes.js";
+import connectPgSimple from "connect-pg-simple";
+import { config, SESSION_TTL_MS } from "./config.js";
+import { pool } from "./db/pool.js";
+import authRoutes from "./auth/localAuthRoutes.js";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
 
 async function startServer(): Promise<void> {
-  const redisClient = config.REDIS_URL ? createClient({ url: config.REDIS_URL }) : null;
+  await pool.query("SELECT 1");
 
-  if (redisClient) {
-    redisClient.on("error", () => console.error("Redis session store connection error."));
-    await redisClient.connect();
-  } else if (config.NODE_ENV === "production") {
-    throw new Error("A Redis session store is required in production.");
-  }
+  const PgSessionStore = connectPgSimple(session);
+  const sessionStore = new PgSessionStore({
+    pool,
+    tableName: "app_sessions",
+    createTableIfMissing: true,
+    pruneSessionInterval: 15
+  });
 
   const app = express();
   app.disable("x-powered-by");
@@ -40,15 +43,12 @@ async function startServer(): Promise<void> {
   }));
 
   app.use(session({
+    store: sessionStore,
     name: config.SESSION_COOKIE_NAME,
     secret: config.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    ...(redisClient ? { store: new RedisStore({
-      client: redisClient,
-      prefix: "campaignhub:sessions:",
-      ttl: SESSION_TTL_SECONDS
-    }) } : {}),
+    rolling: true,
     cookie: {
       httpOnly: true,
       secure: config.NODE_ENV === "production",
@@ -59,24 +59,50 @@ async function startServer(): Promise<void> {
     proxy: config.NODE_ENV === "production"
   }));
 
-  app.get("/health", (_req, res) => res.status(200).json({
-    status: "ok",
-    service: "salesforce-campaign-email-marketing-api",
-    environment: config.NODE_ENV
-  }));
-  app.use("/auth", authRoutes);
-
-  app.use((_req, res) => res.status(404).json({ error: "NOT_FOUND", message: "Route not found" }));
-  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    // Never log request bodies, OAuth tokens, cookies or provider payloads.
-    console.error("Unhandled API error", err instanceof Error ? err.name : "UnknownError");
-    res.status(500).json({ error: "INTERNAL_ERROR", message: "An unexpected error occurred" });
+  app.get("/health", async (_req, res) => {
+    try {
+      await pool.query("SELECT 1");
+      res.status(200).json({
+        status: "ok",
+        service: "campaignhub-api",
+        environment: config.NODE_ENV,
+        database: "connected",
+        mode: "standalone"
+      });
+    } catch {
+      res.status(503).json({ status: "error", database: "unavailable" });
+    }
   });
 
-  app.listen(config.API_PORT, () => console.log(`API listening on port ${config.API_PORT}`));
+  app.use("/auth", authRoutes);
+  app.use("/dashboard", dashboardRoutes);
+
+  app.use((_req, res) => {
+    res.status(404).json({ error: "NOT_FOUND", message: "Route not found" });
+  });
+
+  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    // Never log passwords, session cookies, contact records or request bodies.
+    console.error("Unhandled API error", err instanceof Error ? err.name : "UnknownError");
+    res.status(500).json({ error: "INTERNAL_ERROR", message: "An unexpected error occurred." });
+  });
+
+  const httpServer = app.listen(config.API_PORT, () => {
+    console.log(`CampaignHub API listening on port ${config.API_PORT} (standalone mode)`);
+  });
+
+  const shutdown = (signal: string) => {
+    console.log(`Received ${signal}; shutting down gracefully.`);
+    httpServer.close(() => {
+      sessionStore.close();
+      void pool.end().finally(() => process.exit(0));
+    });
+  };
+  process.once("SIGINT", () => shutdown("SIGINT"));
+  process.once("SIGTERM", () => shutdown("SIGTERM"));
 }
 
 startServer().catch((error: unknown) => {
-  console.error("API startup failed", error instanceof Error ? error.message : "UnknownError");
+  console.error("API startup failed:", error instanceof Error ? error.message : "Unknown error");
   process.exitCode = 1;
 });

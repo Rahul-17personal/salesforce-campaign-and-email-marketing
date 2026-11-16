@@ -1,31 +1,37 @@
 {
   "name": "@marketing/api",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "tsc --noEmit -p tsconfig.json"
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:seed": "tsx src/db/seed.ts"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "compression": "^1.7.4",
-    "connect-redis": "^10.0.0",
+    "connect-pg-simple": "^10.0.0",
     "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
-    "express-session": "^1.18.1",
+    "express-session": "^1.19.0",
     "helmet": "^8.0.0",
-    "redis": "^5.0.1",
+    "pg": "^8.16.3",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/compression": "^1.7.5",
+    "@types/connect-pg-simple": "^7.0.3",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/express-session": "^1.18.2",
     "@types/node": "^22.10.5",
+    "@types/pg": "^8.23.1",
     "tsx": "^4.19.2"
   }
 }
