@@ -25,25 +25,15 @@ function safeEqual(left: string | undefined, right: string | undefined): boolean
   const b = Buffer.from(right);
   return a.length === b.length && timingSafeEqual(a, b);
 }
-
 function saveSession(req: Request): Promise<void> {
-  return new Promise((resolve, reject) => {
-    req.session.save((error) => error ? reject(error) : resolve());
-  });
+  return new Promise((resolve, reject) => req.session.save((error) => error ? reject(error) : resolve()));
 }
-
 function regenerateSession(req: Request): Promise<void> {
-  return new Promise((resolve, reject) => {
-    req.session.regenerate((error) => error ? reject(error) : resolve());
-  });
+  return new Promise((resolve, reject) => req.session.regenerate((error) => error ? reject(error) : resolve()));
 }
-
 function destroySession(req: Request): Promise<void> {
-  return new Promise((resolve, reject) => {
-    req.session.destroy((error) => error ? reject(error) : resolve());
-  });
+  return new Promise((resolve, reject) => req.session.destroy((error) => error ? reject(error) : resolve()));
 }
-
 function redirectWithError(res: import("express").Response, code: string): void {
   const url = new URL("/", config.WEB_ORIGIN);
   url.searchParams.set("authError", code);
@@ -57,7 +47,6 @@ router.get("/status", async (req, res, next) => {
       req.session.csrfToken = randomBytes(32).toString("base64url");
       await saveSession(req);
     }
-
     const connection = req.session.salesforceConnection;
     res.json({
       configured: isSalesforceConfigured(),
@@ -79,16 +68,17 @@ router.get("/status", async (req, res, next) => {
 router.get("/salesforce", oauthLimiter, async (req, res, next) => {
   try {
     if (!isSalesforceConfigured()) {
-      res.status(503).json({ error: "OAUTH_NOT_CONFIGURED", message: "Salesforce OAuth credentials are not configured on the server." });
+      res.status(503).json({
+        error: "OAUTH_NOT_CONFIGURED",
+        message: "Salesforce OAuth credentials, session secret and token encryption key must be configured on the server."
+      });
       return;
     }
-
     const state = randomBytes(32).toString("base64url");
     const pkce = createPkcePair();
     req.session.oauthState = state;
     req.session.pkceVerifier = pkce.verifier;
     await saveSession(req);
-
     res.redirect(302, createAuthorizationUrl(state, pkce.challenge));
   } catch (error) {
     next(error);
@@ -102,8 +92,15 @@ router.get("/salesforce/callback", oauthLimiter, async (req, res) => {
   const expectedState = req.session.oauthState;
   const verifier = req.session.pkceVerifier;
 
+  // Consume and persist the one-time state before token exchange to prevent callback replay.
   delete req.session.oauthState;
   delete req.session.pkceVerifier;
+  try {
+    await saveSession(req);
+  } catch {
+    redirectWithError(res, "session_validation_failed");
+    return;
+  }
 
   if (!safeEqual(state, expectedState) || !verifier) {
     redirectWithError(res, "state_validation_failed");
@@ -149,24 +146,19 @@ router.get("/salesforce/callback", oauthLimiter, async (req, res) => {
 
 router.post("/logout", async (req, res, next) => {
   try {
-    const origin = req.get("origin");
-    if (origin !== config.WEB_ORIGIN || !safeEqual(req.session.csrfToken, req.get("x-csrf-token"))) {
+    if (req.get("origin") !== config.WEB_ORIGIN ||
+        !safeEqual(req.session.csrfToken, req.get("x-csrf-token"))) {
       res.status(403).json({ error: "CSRF_VALIDATION_FAILED", message: "Request could not be verified." });
       return;
     }
 
     const connection = req.session.salesforceConnection;
-    if (connection?.encryptedRefreshToken) {
+    const encryptedToken = connection?.encryptedRefreshToken ?? connection?.encryptedAccessToken;
+    if (encryptedToken) {
       try {
-        await revokeSalesforceToken(decryptToken(connection.encryptedRefreshToken));
+        await revokeSalesforceToken(decryptToken(encryptedToken));
       } catch {
-        // The local session is still cleared; revoke failures are intentionally not logged with token data.
-      }
-    } else if (connection?.encryptedAccessToken) {
-      try {
-        await revokeSalesforceToken(decryptToken(connection.encryptedAccessToken));
-      } catch {
-        // The local session is still cleared.
+        // The local session is cleared even if remote revocation is unavailable.
       }
     }
 
