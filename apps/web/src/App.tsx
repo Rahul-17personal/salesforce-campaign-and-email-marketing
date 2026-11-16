@@ -34,13 +34,11 @@ export default function App() {
       fetch("/api/health", { credentials: "same-origin" }),
       fetch("/api/auth/status", { credentials: "same-origin", cache: "no-store" })
     ]);
-
     if (healthResult.status === "fulfilled" && healthResult.value.ok) {
       setHealth(await healthResult.value.json() as Health);
     } else {
       setHealth(null);
     }
-
     if (authResult.status === "fulfilled" && authResult.value.ok) {
       setAuth(await authResult.value.json() as AuthStatus);
     } else {
@@ -62,14 +60,14 @@ export default function App() {
       };
       setAuthError(messages[errorCode] ?? "Salesforce sign-in failed. Please try again.");
       query.delete("authError");
-      const nextUrl = query.size ? `${window.location.pathname}?${query.toString()}` : window.location.pathname;
+      const remaining = query.toString();
+      const nextUrl = remaining ? `${window.location.pathname}?${remaining}` : window.location.pathname;
       window.history.replaceState({}, "", nextUrl);
     }
   }, [refreshStatus]);
 
   const connectSalesforce = () => {
-    // Keep the OAuth start and callback on the exact same host so the browser
-    // returns the same HttpOnly session cookie after Salesforce redirects back.
+    // Keep OAuth start and callback on the same host so the session cookie survives the redirect.
     const base = window.location.hostname === "127.0.0.1" ? "http://localhost:5173" : "";
     window.location.assign(`${base}/api/auth/salesforce`);
   };
@@ -175,7 +173,6 @@ export default function App() {
 function Metric({ title, note, icon }: { title: string; note: string; icon: React.ReactNode }) {
   return <div className="metric-card"><div className="metric-top"><span>{title}</span><div className="metric-icon">{icon}</div></div><strong>—</strong><small>{note}</small></div>;
 }
-
 function Check({ n, title, detail, locked = false, complete = false }: { n: string; title: string; detail: string; locked?: boolean; complete?: boolean }) {
   return <div className="check-row"><span className="check-number">{complete ? "✓" : n}</span><div><strong>{title}</strong><small>{detail}</small></div><span className={complete ? "tag complete" : locked ? "tag locked" : "tag pending"}>{complete ? "Complete" : locked ? "Locked" : "Pending"}</span></div>;
 }

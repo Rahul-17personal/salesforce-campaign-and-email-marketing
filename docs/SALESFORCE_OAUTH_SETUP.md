@@ -19,9 +19,9 @@ In the Salesforce org:
    - **Access the identity URL service** (`id`), if shown as a separate scope
    - **Perform requests at any time** (`refresh_token, offline_access`)
 
-7. Enable the **Web Server Flow**.
+7. Use the standard **Web Server (Authorization Code) flow**. The separate **Authorization Code and Credentials** flow is for headless identity use cases and is not required by this browser-based web app.
 8. Require **PKCE** for supported authorization flows.
-9. Because this app has a confidential backend, enable **Require Secret for Web Server Flow** and **Require Secret for Refresh Token Flow** where those options are available.
+9. Because this app has a confidential backend, enable **Require Secret for Web Server Flow** and **Require Secret for Refresh Token Flow**.
 10. Configure permitted users and user/permission-set access according to your company policy. For a pilot, restrict access to approved users.
 11. Save the app. Open its OAuth settings and retrieve the **Consumer Key** and **Consumer Secret**.
 
@@ -83,14 +83,14 @@ The Vite development proxy exposes these under `/api`.
 
 - Local development uses Express's in-memory session store; a backend restart signs users out.
 - Salesforce access and refresh tokens are encrypted with AES-256-GCM before being placed in the server-side session.
-- Production requires Redis-backed sessions, HTTPS, a strong session secret, and a separate 32-byte token-encryption key. Use AWS Secrets Manager/KMS-backed operations for production key management.
+- Production requires TLS Redis-backed sessions, HTTPS, a strong session secret, and a separate 32-byte token-encryption key. Use AWS Secrets Manager/KMS-backed operations for production key management.
 - Session lifetime is currently eight hours. Salesforce refresh-token validity remains governed by the Salesforce External Client App policy and org settings.
 
 ## Troubleshooting
 
 - `OAUTH_NOT_CONFIGURED`: verify client ID, client secret, session secret and token encryption key are present in the API's `.env`.
 - `redirect_uri_mismatch`: the callback URL in Salesforce and `SF_REDIRECT_URI` must match exactly.
-- `invalid_client`: verify the Consumer Key/Secret and that the Web Server Flow requires the secret as configured.
+- `invalid_client`: verify the Consumer Key/Secret and that **Require Secret for Web Server Flow** is configured.
 - PKCE error: verify PKCE is enabled in the External Client App and do not remove `code_challenge` / `code_verifier`.
 - State validation failure: start login in one browser tab and complete the callback in the same browser; do not mix `localhost` and `127.0.0.1`.
 - A Salesforce login can succeed while CRM operations remain unavailable until the next phase implements scoped REST API calls and authorization checks.

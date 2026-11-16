@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const DEFAULT_SESSION_SECRET = "local-only-change-this-session-secret-32";
+const PLACEHOLDER_SESSION_SECRET = "replace-with-a-random-value-at-least-32-characters";
 
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -43,11 +44,11 @@ const schema = z.object({
     if (web.protocol !== "https:" || redirect.protocol !== "https:") {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["WEB_ORIGIN"], message: "Production web origin and OAuth callback must use HTTPS." });
     }
-    if (value.SESSION_SECRET === DEFAULT_SESSION_SECRET) {
+    if (value.SESSION_SECRET === DEFAULT_SESSION_SECRET || value.SESSION_SECRET === PLACEHOLDER_SESSION_SECRET) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["SESSION_SECRET"], message: "Replace the development session secret in production." });
     }
-    if (!value.REDIS_URL) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["REDIS_URL"], message: "REDIS_URL is required in production for server-side sessions." });
+    if (!value.REDIS_URL || new URL(value.REDIS_URL).protocol !== "rediss:") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["REDIS_URL"], message: "Production requires a TLS Redis URL (rediss://) for server-side sessions." });
     }
     if (!value.TOKEN_ENCRYPTION_KEY_HEX) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["TOKEN_ENCRYPTION_KEY_HEX"], message: "Production requires a dedicated token encryption key." });
@@ -65,6 +66,7 @@ export function isSalesforceConfigured(): boolean {
     config.SF_CLIENT_SECRET &&
     config.TOKEN_ENCRYPTION_KEY_HEX &&
     /^[a-fA-F0-9]{64}$/.test(config.TOKEN_ENCRYPTION_KEY_HEX) &&
-    config.SESSION_SECRET !== DEFAULT_SESSION_SECRET
+    config.SESSION_SECRET !== DEFAULT_SESSION_SECRET &&
+    config.SESSION_SECRET !== PLACEHOLDER_SESSION_SECRET
   );
 }
